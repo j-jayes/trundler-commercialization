@@ -54,7 +54,7 @@ xaringanExtra::use_progress_bar(color = "#EB821D", location = "top", height = "5
 ```
 .pull-left[
 
-# Table of contents
+# Potential use cases
 
 1. [Reports for manufacturers: own products](#ownproducts)
 
@@ -112,7 +112,7 @@ knitr::include_graphics("images/checkers_glue.PNG")
 class: inverse, center, middle
 name: ownproducts
 
-# Competitors products
+# Reports for manufacturers: competitors products
 
 Manufacturer information on competitors retail pricing
 
