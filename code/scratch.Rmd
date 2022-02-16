@@ -1,0 +1,30 @@
+---
+title: "Untitled"
+author: "JJayes"
+date: "09/02/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+tr <- config::get("tundler")
+```
+
+```{r}
+db <- DBI::dbConnect(
+    RPostgres::Postgres(),
+    dbname = tr$dbname,
+    host = tr$host,
+    port = tr$port,
+    user = tr$user,
+    password = tr$pwd
+  )
+```
+

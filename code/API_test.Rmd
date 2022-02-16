@@ -1,0 +1,142 @@
+---
+title: "Untitled"
+author: "JJayes"
+date: "09/02/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+remotes::install_gitlab("trundler/trundlerdoc")
+
+library(pacman)
+p_load_gh("datawookie/trundler")
+```
+
+```{r}
+library(trundler)
+```
+
+```{r}
+set_api_key("a4861c47-b132-4cda-a6e4-a4340d7e29e0")
+```
+
+```{r}
+retailers <- trundler::retailer()
+```
+
+```{r}
+retailers %>% 
+  count(currency, sort = T)
+```
+
+```{r}
+retailers %>% select(retailer, retailer_id, currency) %>% view
+```
+
+### Looking at wine
+
+```{r}
+# wines <- products(product = "wine")
+
+# wines %>% write_rds("data/wines_01.rds")
+
+wines <- read_rds("data/wines_01.rds")
+```
+
+Need to filter by retailer
+
+```{r}
+wines %>% 
+  count(sku, sort = T)
+```
+
+
+Looking at product prices for wine
+
+```{r}
+sweet_wine_price <- product_prices(3571248)
+```
+
+```{r}
+sweet_wine_price %>% 
+  ggplot(aes(time, price_effective)) +
+  geom_line()
+```
+
+
+
+## check to find fairview wine
+
+```{r}
+fairview_wines <- wines %>% 
+  filter(str_detect(product, "Fairview"))
+```
+
+```{r}
+fairview_merlot <- product_prices(9019526)
+
+fairview_merlot
+```
+
+
+```{r}
+fairview_wines <- fairview_wines %>% 
+  mutate(prices = map(product_id, product_prices))
+
+fairview_wines <- fairview_wines %>% 
+  unnest(prices)
+
+fairview_wines %>% 
+  select(-product_id) %>% 
+  unnest(prices) %>% 
+  ggplot(aes(time, price_effective, colour = product)) +
+  geom_point() +
+  geom_line()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+incdredible_products <- retailer_products(40)
+```
+
+
+```{r}
+incdredible_products
+```
+
+```{r}
+price_JBL_earphones <- product_prices(10610964)
+```
+
+```{r}
+price_JBL_earphones %>% 
+  ggplot(aes(time, price_effective)) +
+  geom_point()
+```
+
+
+```{r}
+incdredible_products %>% 
+  count(brand, sort = T)
+```
+
+```{r}
+
+```
+

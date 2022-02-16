@@ -1,0 +1,191 @@
+---
+title: "Norman Goodfellows Automated Report"
+author: "JJayes"
+date: "16/02/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Ideas
+
+1. Analysis of effective price by competitor vs own price.
+  - bump chart of lowest price by date
+
+2. Analysis of when products go on sale.
+
+3. Stockouts.
+
+```{r}
+library(tidyverse)
+library(trundler)
+theme_set(theme_light())
+
+alcohol_retailers <- read_rds("data/alcohol_retailers.rds")
+
+alcohol_retailers <- alcohol_retailers %>%
+  mutate(logo_src = case_when(
+    str_detect(retailer, "Game") ~ "images/logos/game.png",
+    str_detect(retailer, "Woolworths") ~ "images/logos/woolworths.png",
+    str_detect(retailer, "Pick 'n Pay") ~ "images/logos/pick_n_pay.jpg",
+    str_detect(retailer, "Makro") ~ "images/logos/makro.jpg",
+    str_detect(retailer, "Checkers") ~ "images/logos/checkers.jpg",
+    str_detect(retailer, "Norman Goodfellows") ~ "images/logos/norman_goodfellows.jpg",
+    str_detect(retailer, "Bar Keeper") ~ "images/logos/bar_keeper.jpg",
+    str_detect(retailer, "Dry Dock") ~ "images/logos/wine_co_za.jpg",
+    str_detect(retailer, "wine.co.za") ~ "images/logos/woolworths.png",
+    str_detect(retailer, "Cellar Direct") ~ "images/logos/cellar_direct.png",
+    str_detect(retailer, "Getwine") ~ "images/logos/get_wine.jpg",
+    str_detect(retailer, "Order Wine") ~ "images/logos/order_wine.jpg",
+    
+  ))
+
+alcohol_retailers %>%
+  gt() %>%
+  text_transform(
+    locations = cells_body(columns = c(logo_src),
+                           rows = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)),
+    fn = function(x) {
+      local_image(
+        filename = paste0(x),
+        height = as.numeric(75)
+      )
+    }
+  )
+  
+```
+
+## Get credentials
+
+```{r}
+tr <- config::get("tundlerapi")
+set_api_key(tr$api_key)
+```
+
+## Get products
+
+```{r}
+input <- "Savanna Dry"
+highlight <- 110
+highlight_name <- alcohol_retailers %>% 
+  filter(retailer_id == highlight) %>% 
+  pull(retailer)
+
+df <- products(product = input, ignore_case = T)
+
+df <- df %>% 
+  filter(retailer_id %in% alcohol_retailers$retailer_id)
+```
+
+## Get prices
+
+```{r}
+df_prices <- df %>% 
+  # head(10) %>%
+  mutate(prices = map(product_id, possibly(product_prices, "failed")))
+
+# df_prices %>% write_rds("data/savanna_dry_prices.rds")
+
+df_prices <- df_prices %>% 
+  inner_join(alcohol_retailers)
+
+df_prices <- df_prices %>%
+  select(-product_id) %>%
+  unnest(prices) %>% 
+  group_by(product_id, price_effective) %>% 
+  add_count(name = "n_obs") %>% 
+  ungroup()
+  
+```
+
+## Highlight prices
+
+```{r}
+library(gghighlight)
+library(ggsci)
+
+df_prices %>%
+  filter(between(price_effective, 0, 600)) %>% 
+  ggplot(aes(time, price_effective, colour = product)) +
+  geom_point() +
+  geom_line() +
+  scale_color_npg() +
+  gghighlight(retailer_id == highlight & n_obs > 20) +
+  labs(title = paste0(input, " products highlighted are from ", highlight_name),
+       subtitle = "Greyed out lines are from other retailers") +
+  labs(x = NULL,
+       y = "Effective price")
+```
+
+### who has the biggest discounts?
+
+```{r}
+df_prices %>% 
+  pivot_longer(c(price, price_promotion, price_effective)) %>% 
+  group_by(retailer_id, product_id) %>% 
+  add_count() %>% 
+  filter(n == max(n)) %>% 
+  ungroup() %>%
+  filter(between(value, 200, 500)) %>% 
+  ggplot(aes(time, value, colour = name)) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~ retailer)
+```
+
+Make this figure into a table?
+
+```{r, layout = "l-body-outset"}
+library(gt)
+library(lubridate)
+
+df_prices %>%
+  mutate(pct_discount = (price - price_effective) / price) %>%
+  # select(product, price, price_effective, pct_discout) %>%
+  filter(pct_discount != 0) %>%
+  group_by(product_id, pct_discount) %>%
+  mutate(
+    date = lubridate::as_date(time),
+    date = lubridate::ymd(date),
+    min_time = min(time),
+    max_time = max(time),
+    duration = lubridate::as.duration(max_time - min_time),
+    duration = as.period(duration, units = "days"),
+    min_time = ymd(as_date(min_time))
+  ) %>%
+  ungroup() %>%
+  distinct(product_id, pct_discount, .keep_all = T) %>%
+  select(retailer, product, price, price_effective, pct_discount, min_time, duration) %>%
+  mutate(
+    across(where(is.numeric), ~ round(., 2))
+  ) %>%
+  filter(duration != 0) %>% 
+  arrange(retailer, min_time) %>%
+  gt() %>%
+  cols_label(
+    retailer = "Retailer",
+    product = "Product",
+    price = "Regular Price",
+    price_effective = "Discount Price",
+    pct_discount = "Discount",
+    min_time = "Start Date",
+    duration = "Duration of Promo"
+  ) %>% 
+  fmt_percent(columns = c(pct_discount), decimals = 0) %>% 
+   data_color(
+    columns = c(pct_discount),
+    colors = scales::col_numeric(
+      palette = c("#ffffff", "#f2fbd2", "#c9ecb4", "#93d3ab", "#35b0ab"),
+      domain = NULL
+    )
+  ) %>%
+  tab_source_note("Source: Trundler") %>%
+  tab_header(
+    title = md("**Promotion analysis**"),
+    subtitle = paste0("For ", input)
+  )
+
+```
+

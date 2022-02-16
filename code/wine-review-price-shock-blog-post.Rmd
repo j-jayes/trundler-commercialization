@@ -1,0 +1,109 @@
+---
+title: 'Blog post about price shock after review'
+author: "JJayes"
+date: "14/02/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Purpose
+
+I want to write a trundler blog post that looks at the price of different wines over time, and then looking to see if a review from Christian Eedes translates into a price shock. 
+
+```{r}
+library(tidyverse)
+wines <- read_rds("data/wines_01.rds")
+
+```
+
+```{r}
+fairview_wines <- wines %>% 
+  filter(str_detect(product, "Fairview"))
+```
+
+```{r}
+fairview_wines <- fairview_wines %>% 
+  mutate(prices = map(product_id, product_prices))
+
+fairview_wines <- fairview_wines %>% 
+  unnest(prices)
+
+fairview_wines %>% 
+  select(-product_id) %>% 
+  unnest(prices) %>% 
+  ggplot(aes(time, price_effective, colour = product)) +
+  geom_point() +
+  geom_line()
+```
+
+Questions I would want to answer -
+
+1. What products change price the most number of times
+2. What products have the greatest amount of spread
+3. What products have the slowest price increase within a retailer's portfolio.
+
+
+
+```{r}
+wines %>% view
+```
+
+
+
+Netflorist products
+
+
+```{r}
+netflorist_products <- retailer_products(59)
+```
+
+
+```{r}
+netflorist_products %>% 
+  filter(str_detect(product, "roses|Roses")) %>% view
+```
+
+
+```{r}
+valentines_products <- products(product = "valentine")
+
+valentines_products %>% view
+
+
+valentines_products_top_200 <- valentines_products %>% 
+  head(200) %>% 
+  mutate(prices = map(product_id, possibly(product_prices, "failed")))
+
+
+valentines_products_top_200 %>% 
+  select(!product_id) %>% 
+  filter(prices != "failed") %>% 
+  unnest(prices) %>% 
+  ggplot(aes(time, price_effective, colour = product)) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~retailer_id) +
+  theme(legend.position = "none")
+```
+
+
+```{r}
+valentines_products_top_200 %>%
+  select(!product_id) %>%
+  filter(
+    prices != "failed",
+    retailer_id != 59
+  ) %>%
+  unnest(prices) %>%
+  # mutate(year = lubridate::year(time)) %>% count(year)
+  ggplot(aes(time, price_effective, colour = product)) +
+  geom_point() +
+  geom_line() +
+  geom_vline(xintercept = ymd_hms("2021-02-14-00-00-00"), lty = 2) +
+  facet_wrap(~retailer_id) +
+  theme(legend.position = "none")
+```
+
